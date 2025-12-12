@@ -1,91 +1,208 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Infinite Geometry Art</title>
-<style>
-  body {
-    margin: 0;
-    background: #0a0a0a;
-    overflow: hidden;
-  }
-  canvas {
-    display: block;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinity Celestial Dance</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <script>
+        let bodies = [];
+        let stars = [];
+        const G = 0.3; // Gravitational constant (exaggerated for visual impact)
+        let timeScale = 3; // Speed multiplier for mesmerizing fast motion
 
-<script>
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            colorMode(HSB, 360, 100, 100, 100);
+            
+            // Create starfield background
+            for (let i = 0; i < 500; i++) {
+                stars.push({
+                    x: random(width),
+                    y: random(height),
+                    brightness: random(20, 100),
+                    twinkle: random(0.01, 0.05)
+                });
+            }
+            
+            // Create sun at center
+            bodies.push(new Body(300, createVector(0, 0), createVector(0, 0), color(45, 100, 100)));
+            
+            // Create 8 planets with realistic orbital mechanics
+            let planetData = [
+                {mass: 8, distance: 120, color: [200, 80, 90], moons: 0},
+                {mass: 12, distance: 180, color: [30, 90, 85], moons: 0},
+                {mass: 15, distance: 240, color: [120, 70, 80], moons: 1},
+                {mass: 10, distance: 300, color: [15, 100, 95], moons: 0},
+                {mass: 40, distance: 380, color: [280, 60, 85], moons: 2},
+                {mass: 35, distance: 460, color: [60, 100, 90], moons: 1},
+                {mass: 18, distance: 540, color: [180, 50, 80], moons: 0},
+                {mass: 16, distance: 620, color: [240, 80, 85], moons: 0}
+            ];
+            
+            for (let data of planetData) {
+                let angle = random(TWO_PI);
+                let pos = createVector(cos(angle) * data.distance, sin(angle) * data.distance);
+                let orbitalSpeed = sqrt(G * bodies[0].mass / data.distance);
+                let vel = createVector(-sin(angle), cos(angle)).mult(orbitalSpeed);
+                
+                // Add some elliptical variation for mesmerizing patterns
+                vel.mult(random(0.8, 1.2));
+                
+                bodies.push(new Body(data.mass, pos, vel, color(...data.color), data.moons, bodies[0]));
+            }
+        }
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.onresize = resize;
+        function draw() {
+            // Animated starfield background
+            drawStarfield();
+            
+            push();
+            translate(width / 2, height / 2);
+            
+            // Update and draw all celestial bodies
+            for (let i = 0; i < bodies.length; i++) {
+                for (let j = 0; j < bodies.length; j++) {
+                    if (i !== j) {
+                        bodies[i].attract(bodies[j]);
+                    }
+                }
+            }
+            
+            for (let body of bodies) {
+                body.update();
+                body.show();
+            }
+            
+            pop();
+        }
 
-let t = 0;
+        function drawStarfield() {
+            background(240, 100, 5); // Deep space
+            
+            // Twinkling stars
+            for (let star of stars) {
+                let brightness = star.brightness + sin(frameCount * star.twinkle) * 20;
+                stroke(0, 0, 100, brightness);
+                strokeWeight(1);
+                point(star.x, star.y);
+            }
+        }
 
-function draw() {
-  ctx.fillStyle = "#0a0a0a20";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+        class Body {
+            constructor(mass, pos, vel, col, moons = 0, parent = null) {
+                this.mass = mass;
+                this.pos = pos.copy();
+                this.vel = vel.copy();
+                this.col = col;
+                this.r = sqrt(mass) * 3;
+                this.path = [];
+                this.maxPathLength = 150;
+                this.moons = [];
+                this.parent = parent;
+                
+                // Create moons for mesmerizing detail
+                if (moons > 0 && parent) {
+                    for (let i = 0; i < moons; i++) {
+                        let moonDist = this.r + random(20, 40);
+                        let moonMass = this.mass * 0.1;
+                        let moonAngle = random(TWO_PI);
+                        let moonPos = createVector(
+                            this.pos.x + cos(moonAngle) * moonDist,
+                            this.pos.y + sin(moonAngle) * moonDist
+                        );
+                        let moonVel = createVector(
+                            -sin(moonAngle) * sqrt(G * this.mass / moonDist),
+                            cos(moonAngle) * sqrt(G * this.mass / moonDist)
+                        ).add(this.vel);
+                        
+                        this.moons.push(new Body(moonMass, moonPos, moonVel, color(0, 0, 90), 0, this));
+                    }
+                }
+            }
+            
+            attract(child) {
+                let force = p5.Vector.sub(this.pos, child.pos);
+                let distance = constrain(force.mag(), 5, 800);
+                let strength = (G * this.mass * child.mass) / (distance * distance);
+                force.setMag(strength);
+                child.applyForce(force);
+            }
+            
+            applyForce(force) {
+                let f = p5.Vector.div(force, this.mass);
+                this.vel.add(f);
+            }
+            
+            update() {
+                this.vel.mult(timeScale); // Speed up for mesmerizing effect
+                this.pos.add(this.vel);
+                this.vel.div(timeScale);
+                
+                // Track path for mesmerizing trails
+                this.path.push(this.pos.copy());
+                if (this.path.length > this.maxPathLength) {
+                    this.path.shift();
+                }
+                
+                // Update moons
+                for (let moon of this.moons) {
+                    for (let body of [this, ...bodies]) {
+                        if (body !== moon) moon.attract(body);
+                    }
+                    moon.update();
+                }
+            }
+            
+            show() {
+                push();
+                
+                // Draw mesmerizing orbital trail
+                if (this.path.length > 1) {
+                    noFill();
+                    for (let i = 0; i < this.path.length - 1; i++) {
+                        let alpha = map(i, 0, this.path.length, 0, 60);
+                        stroke(hue(this.col), saturation(this.col), brightness(this.col), alpha);
+                        strokeWeight(1.5);
+                        line(this.path[i].x, this.path[i].y, this.path[i + 1].x, this.path[i + 1].y);
+                    }
+                }
+                
+                // Draw celestial body with glow effect
+                drawingContext.shadowBlur = 20;
+                drawingContext.shadowColor = color(hue(this.col), saturation(this.col), brightness(this.col));
+                
+                fill(this.col);
+                noStroke();
+                ellipse(this.pos.x, this.pos.y, this.r * 2);
+                
+                // Special sun effects
+                if (this === bodies[0]) {
+                    drawingContext.shadowBlur = 50;
+                    fill(45, 100, 100, 30);
+                    ellipse(this.pos.x, this.pos.y, this.r * 3);
+                }
+                
+                drawingContext.shadowBlur = 0;
+                
+                // Draw moons
+                for (let moon of this.moons) {
+                    moon.show();
+                }
+                
+                pop();
+            }
+        }
 
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-
-  let layers = 6;   // number of orbit layers
-  let maxR = Math.min(cx, cy) * 0.6;
-
-  for (let i = 0; i < layers; i++) {
-    let radius = maxR * (i + 1) / layers;
-    let angle = t * (0.002 + i * 0.0004);
-
-    // Draw orbit circles
-    ctx.strokeStyle = "#ffffff22";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Draw rotating nodes on orbit
-    let nodes = 12;
-    for (let n = 0; n < nodes; n++) {
-      let phi = angle + (Math.PI * 2 * n) / nodes;
-
-      let x = cx + Math.cos(phi) * radius;
-      let y = cy + Math.sin(phi) * radius;
-
-      // Connecting lines between layers
-      if (i > 0 && n % 2 === 0) {
-        let prevR = maxR * (i) / layers;
-        let px = cx + Math.cos(phi * 1.1) * prevR;
-        let py = cy + Math.sin(phi * 1.1) * prevR;
-
-        ctx.strokeStyle = "#ffffff10";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(px, py);
-        ctx.stroke();
-      }
-
-      // draw node
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  t++;
-  requestAnimationFrame(draw);
-}
-
-draw();
-</script>
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+    </script>
 </body>
 </html>
